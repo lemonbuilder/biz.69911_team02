@@ -59,4 +59,4 @@ It goes at the top of `docs/QUESTIONS.md`, because it is the best use of the 30 
 | Date | What changed and why |
 |---|---|
 | 2026-10-02 | Draft for consultation |
-| 2026-10-11 | 컨설팅 후 팀 논의 결과: 아이디어(3인 오프라인 "진짜 대화" 모임)를 그대로 진행하기로 결정했다. 교수님이 진행 중인 모임과 이전 수강생들의 후속 모임 등 좋은 사례를 벤치마킹한다. AI 활용 이외에 "진짜 대화"란 무엇인지, "의미 있는 모임"이란 무엇인지 알아내는 데 시간과 에너지를 투자한다. 문제의 본질에 집중하되, 수업 시간에 배우는 내용도 적극적으로 활용하고 시도한다. |
+| 2026-10-11 | Revised after the 2026-10-03 consultation: kept the idea, added benchmarking. |
