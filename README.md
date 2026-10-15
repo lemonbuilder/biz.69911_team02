@@ -2,7 +2,7 @@
 
 Team 02 · KAIST BIZ.69911 AI-Driven Business Evolution: Strategy and Practice, Fall 2026
 
-| # | Project | Description | Live |
+| # | Project&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | Description | Live |
 |---|---------|-------------|------|
 | 2 | 진짜대화 | In an age when AI stands in for people, we help those who feel left out have real, irreplaceable conversations offline. | — |
 
