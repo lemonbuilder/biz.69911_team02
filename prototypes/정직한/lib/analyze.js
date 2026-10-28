@@ -57,6 +57,7 @@ async function callGemini(prompt) {
   const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST",
+    signal: TIMEOUT(),
     headers: { "Content-Type": "application/json", "x-goog-api-key": key },
     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } }),
   });
@@ -71,6 +72,7 @@ async function callOpenAICompatible(prompt) {
   const base = process.env.OPENAI_BASE_URL.replace(/\/$/, "");
   const res = await fetch(`${base}/chat/completions`, {
     method: "POST",
+    signal: TIMEOUT(),
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.OPENAI_API_KEY || ""}` },
     body: JSON.stringify({ model: process.env.OPENAI_MODEL || "auto:smart", messages: [{ role: "user", content: prompt }] }),
   });
@@ -82,6 +84,7 @@ async function callOllama(prompt) {
   const url = (process.env.OLLAMA_URL || "http://localhost:11434").replace(/\/$/, "");
   const res = await fetch(`${url}/api/chat`, {
     method: "POST",
+    signal: TIMEOUT(),
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model: process.env.OLLAMA_MODEL || "qwen2.5:7b", stream: false, format: "json", messages: [{ role: "user", content: prompt }] }),
   });
@@ -89,9 +92,12 @@ async function callOllama(prompt) {
   return (await res.json()).message.content;
 }
 
+const TIMEOUT = () => AbortSignal.timeout(Number(process.env.LLM_TIMEOUT_MS) || 180000);
+
 const CALLS = { openai: callOpenAICompatible, gemini: callGemini, ollama: callOllama };
 
-export async function analyze(session, segments, metrics, { retries = 2 } = {}) {
+// 응답 시간 초과는 다시 시도하지 않는다(무료 모델이 느릴 때 몇 배로 기다리게 되므로).
+async function askJSON(prompt, check, { retries = 2 } = {}) {
   const engine = pickEngine();
   if (!engine) throw new Error(NO_ENGINE);
   const call = CALLS[engine];
@@ -99,13 +105,48 @@ export async function analyze(session, segments, metrics, { retries = 2 } = {}) 
   let lastErr;
   for (let i = 0; i <= retries; i++) {
     try {
-      const text = await call(buildPrompt(session, segments, metrics));
+      const text = await call(prompt);
       const json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
-      for (const p of session.participants) if (!json.individual?.[p]) throw new Error(`${p}의 개인 결과가 없습니다.`);
+      check(json);
       return { ...json, engine };
     } catch (e) {
-      lastErr = e;
+      lastErr = e.name === "TimeoutError" ? new Error("AI 응답이 3분 안에 오지 않았습니다.") : e;
+      if (e.name === "TimeoutError") break;
     }
   }
   throw lastErr;
+}
+
+export function analyze(session, segments, metrics) {
+  return askJSON(buildPrompt(session, segments, metrics), json => {
+    for (const p of session.participants) if (!json.individual?.[p]) throw new Error(`${p}의 개인 결과가 없습니다.`);
+  });
+}
+
+// 화자 라벨마다 누구인지 추정하고, 라벨이 잘못 붙은 것 같은 문장을 최대 5개 짚는다.
+export async function identifySpeakers(participants, raw) {
+  const labels = [...new Set(raw.map(r => r.label))];
+  const lines = raw.map((r, i) => `[${i}] ${r.label}: ${r.text}`).join("\n");
+  const prompt = `3인 대화의 전사본입니다. 음성 인식이 화자를 "${labels.join('", "')}" 같은 라벨로만 나눴습니다.
+참여자는 ${participants.join(", ")} 세 사람입니다. 라벨 중 일부는 이미 참여자 이름일 수 있습니다.
+
+할 일:
+1. 라벨마다 어느 참여자인지 추정하세요. 근거는 호칭("${participants[0]}님은 어때요?" 다음에 답한 사람), 자기 소개나 자기 업무 이야기, 다른 사람이 그 사람을 부른 말, 말투입니다. 확실하지 않으면 confidence를 "낮음"으로 쓰세요.
+2. 라벨이 잘못 붙은 것 같은 문장(앞뒤 맥락상 다른 사람이 한 말로 보이는 문장)만 최대 5개 고르세요. 없으면 빈 배열.
+
+전사본:
+${lines}
+
+아래 JSON 하나만 출력하세요.
+{
+  "mapping": { "<라벨>": { "name": "<참여자 이름>", "confidence": "높음|중간|낮음", "reason": "근거 한 문장 (짧은 인용 포함)" } },
+  "doubtful": [ { "index": 0, "suggested": "<참여자 이름>", "reason": "근거 한 문장" } ]
+}`;
+  const out = await askJSON(prompt, json => {
+    for (const l of labels) if (!participants.includes(json.mapping?.[l]?.name)) throw new Error(`라벨 ${l}의 추정이 없습니다.`);
+  });
+  out.doubtful = (out.doubtful || [])
+    .filter(d => raw[d.index] && participants.includes(d.suggested) && out.mapping[raw[d.index].label].name !== d.suggested)
+    .slice(0, 5);
+  return out;
 }

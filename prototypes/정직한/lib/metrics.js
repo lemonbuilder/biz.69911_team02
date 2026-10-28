@@ -43,19 +43,21 @@ export function computeMetrics(segments, participants) {
   return { perPerson: result, balance: 0 + Math.max(0, Math.round(100 * (1 - dev / maxDev))), basis: useMs ? "발화 시간" : "발화 글자 수" };
 }
 
-// "이름: 내용" 형식의 텍스트 전사본을 segments로 바꾼다.
-export function parseTranscriptText(text, participants) {
+// 텍스트 전사본을 [{ label, text }]로 바꾼다. label은 이름일 수도, "발화자 1"일 수도 있다.
+// 받는 형식: "이름: 내용" 한 줄, 또는 클로바노트처럼 "참석자 1 00:12" 다음 줄부터 내용
+export function parseTranscriptText(text) {
   const segments = [];
-  for (const line of text.split(/\r?\n/)) {
-    const m = line.match(/^\s*([^:：]{1,20})\s*[:：]\s*(.+)$/);
-    if (!m) {
-      if (segments.length && line.trim()) segments[segments.length - 1].text += " " + line.trim();
-      continue;
-    }
-    const name = m[1].trim();
-    if (!participants.includes(name)) throw new Error(`전사본의 화자 "${name}"가 참여자 목록에 없습니다.`);
-    segments.push({ speaker: name, text: m[2].trim() });
+  let header = null; // 클로바노트 형식에서 내용을 기다리는 화자
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) { header = null; continue; }
+    const h = line.match(/^(.{1,20}?)\s+\(?\d{1,2}:\d{2}(?::\d{2})?\)?$/);
+    if (h) { header = h[1].trim(); continue; }
+    const m = line.match(/^([^:：]{1,20})\s*[:：]\s*(.+)$/);
+    if (m && !/^\d+$/.test(m[1].trim())) { segments.push({ label: m[1].trim(), text: m[2].trim() }); header = null; continue; }
+    if (header) { segments.push({ label: header, text: line }); header = null; continue; }
+    if (segments.length) segments[segments.length - 1].text += " " + line;
   }
-  if (!segments.length) throw new Error("전사본에서 '이름: 내용' 형식의 줄을 찾지 못했습니다.");
+  if (!segments.length) throw new Error("전사본에서 화자와 내용을 찾지 못했습니다. \"이름: 내용\" 또는 클로바노트 형식인지 확인하세요.");
   return segments;
 }

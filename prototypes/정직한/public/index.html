@@ -64,25 +64,41 @@ async function sessionPage(id, me) {
   const reflected = s.reflected.includes(me);
   let html = `<h2>${esc(s.title)} · ${esc(me)}</h2><div class="card notice">${esc(notice)}</div>`;
 
-  if (s.status === "created" && !s.speakers) {
+  if (s.busy) {
+    html += `<div class="card notice"><b>${s.busy === "identify" ? "AI가 누가 누구인지 추정하고 있습니다…" : "AI가 대화를 분석하고 있습니다…"}</b><br>
+      <span class="muted">무료 모델이라 1~3분 걸릴 수 있습니다. 끝나면 이 화면이 저절로 바뀝니다. 기다리는 동안 회고를 먼저 써도 됩니다.</span></div>`;
+  }
+  if (s.status === "created" && !s.speakers && !s.busy) {
     html += `<h2>1. 모임 녹음</h2>
       <div class="card">
         <button id="rec">● 녹음 시작</button> <span id="recState" class="muted"></span><br>
         <span class="muted">또는 녹음 파일 올리기:</span> <input type="file" id="file" accept="audio/*">
         <button id="up">올리기</button>
       </div>
-      <details class="card" open><summary>전사본 텍스트로 넣기 ("이름: 내용" 한 줄에 하나)</summary>
+      <details class="card" open><summary>전사본 텍스트로 넣기 ("이름: 내용" 또는 클로바노트 형식, 화자가 "발화자 1"이어도 됩니다)</summary>
         <input type="file" id="txFile" accept=".txt,text/plain"> <span class="muted">.txt 파일을 고르면 아래 칸에 채워집니다</span>
         <textarea id="tx" placeholder="${esc(s.participants[0])}: 요즘 어떻게 지냈어?"></textarea>
         <button id="txBtn">전사본으로 분석</button>
       </details>
       <button id="noRec">녹음 없이 진행 (본인 평가만)</button>`;
   }
-  if (s.speakers) {
-    html += `<h2>2. 누가 누구인지 연결</h2><div class="card">` +
-      Object.entries(s.speakers).map(([label, lines]) => `<p><b>화자 ${esc(label)}</b>: <span class="muted">${lines.map(esc).join(" / ")}</span><br>
-        <select data-label="${esc(label)}"><option value="">선택</option>${s.participants.map(p => `<option>${esc(p)}</option>`).join("")}</select></p>`).join("") +
-      `<button id="map">연결하고 분석</button></div>`;
+  if (s.speakers && s.busy !== "identify") {
+    const g = s.guess;
+    const opts = sel => s.participants.map(p => `<option${p === sel ? " selected" : ""}>${esc(p)}</option>`).join("");
+    html += `<h2>2. 누가 누구인지 확인</h2><div class="card">` +
+      (g ? `<p class="muted">AI가 대화 맥락으로 추정해 미리 골라 두었습니다. 맞는지 확인하고, 틀리면 고쳐 주세요.</p>`
+         : `<p class="muted">${s.guessError ? `AI 추정에 실패했습니다(${esc(s.guessError)}). ` : ""}화자마다 누구인지 골라 주세요.</p>`) +
+      Object.entries(s.speakers).map(([label, lines]) => {
+        const m = g?.mapping?.[label];
+        return `<p><b>${esc(label)}</b>: <span class="muted">${lines.map(esc).join(" / ")}</span><br>
+          <select data-label="${esc(label)}"><option value="">선택</option>${opts(m?.name)}</select>
+          ${m ? `<span class="muted">추정 확신도 ${esc(m.confidence)} · ${esc(m.reason)}</span>` : ""}</p>`;
+      }).join("") +
+      (g?.doubtful?.length ? `<h3>확인이 필요한 문장 ${g.doubtful.length}개</h3>
+        <p class="muted">라벨과 다른 사람이 한 말로 보이는 문장입니다. 이 문장만 확인하면 나머지는 위 연결을 따릅니다.</p>` +
+        g.doubtful.map(d => `<p>“${esc(d.text)}”<br><span class="muted">라벨: ${esc(d.label)} · ${esc(d.reason)}</span><br>
+          실제로 말한 사람: <select data-index="${d.index}" data-label-of="${esc(d.label)}">${opts(d.suggested)}</select></p>`).join("") : "") +
+      `<button id="map">확인하고 분석</button></div>`;
   }
   if (s.analysisError) {
     html += `<div class="card"><span class="err">AI 해석에 실패했습니다: ${esc(s.analysisError)}</span><br>
@@ -110,7 +126,9 @@ async function sessionPage(id, me) {
   on("reflBtn", () => api(`/api/sessions/${id}/reflections`, { method: "POST", body: JSON.stringify({ me, rating: rating.value, text: refl.value }) }));
   on("map", () => {
     const map = {}; document.querySelectorAll("select[data-label]").forEach(el => { if (el.value) map[el.dataset.label] = el.value; });
-    return api(`/api/sessions/${id}/speakers`, { method: "POST", body: JSON.stringify({ map }) });
+    // 모호한 문장은 라벨 연결과 다를 때만 따로 보낸다
+    const overrides = {}; document.querySelectorAll("select[data-index]").forEach(el => { if (el.value !== map[el.dataset.labelOf]) overrides[el.dataset.index] = el.value; });
+    return api(`/api/sessions/${id}/speakers`, { method: "POST", body: JSON.stringify({ map, overrides }) });
   });
 
   const txFile = document.getElementById("txFile");
@@ -129,6 +147,18 @@ async function sessionPage(id, me) {
     };
   }
   if (reflected) showResult(id, me);
+  // 뒤에서 작업이 도는 동안 3초마다 상태를 확인하고, 끝나면 화면을 다시 그린다
+  if (s.busy) {
+    const timer = setInterval(async () => {
+      const now = await api(`/api/sessions/${id}`).catch(() => null);
+      if (now && !now.busy) {
+        clearInterval(timer);
+        // 회고를 쓰는 중이면 지우지 않도록 새로고침 대신 알림만 띄운다
+        if (document.getElementById("refl")?.value) document.getElementById("msg").textContent = "AI 처리가 끝났습니다. 회고를 저장하면 이어서 볼 수 있습니다.";
+        else location.reload();
+      }
+    }, 3000);
+  }
 }
 
 async function showResult(id, me) {
