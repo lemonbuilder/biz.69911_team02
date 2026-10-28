@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>진짜 대화 리캡</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 0 auto; padding: 16px; line-height: 1.6; color: #222; }
+  h1 { font-size: 1.4rem; } h2 { font-size: 1.1rem; margin-top: 2rem; }
+  .card { border: 1px solid #ddd; border-radius: 8px; padding: 12px 16px; margin: 12px 0; }
+  .notice { background: #fff8e1; border-color: #f0d58a; }
+  .private { background: #eef6ff; border-color: #a9c8ef; }
+  .err { color: #b00020; } .muted { color: #777; font-size: .9rem; }
+  input, textarea, select, button { font: inherit; padding: 6px 8px; margin: 4px 0; }
+  textarea { width: 100%; box-sizing: border-box; min-height: 90px; }
+  button { cursor: pointer; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<h1>진짜 대화 리캡</h1>
+<div id="app"></div>
+<script>
+const $app = document.getElementById("app");
+const q = new URLSearchParams(location.search);
+const api = async (url, opt = {}) => {
+  const res = await fetch(url, { headers: opt.body && !(opt.body instanceof FormData) ? { "Content-Type": "application/json" } : {}, ...opt });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.status);
+  return data;
+};
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const go = params => { location.search = new URLSearchParams(params).toString(); };
+
+async function home() {
+  const { notice } = await api("/api/notice");
+  const list = await api("/api/sessions");
+  $app.innerHTML = `
+    <h2>새 3인 모임 세션</h2>
+    <div class="card notice"><b>미리 알려 드립니다</b><br>${esc(notice)}</div>
+    <input id="title" placeholder="모임 이름" value="진짜 대화"><br>
+    <input id="p1" placeholder="참여자 1"> <input id="p2" placeholder="참여자 2"> <input id="p3" placeholder="참여자 3"><br>
+    <button id="create">안내를 확인했고, 세션을 만듭니다</button> <span id="msg" class="err"></span>
+    <h2>세션 목록</h2>
+    ${list.map(s => `<div class="card"><a href="?s=${s.id}">${esc(s.title)}</a> <span class="muted">${s.participants.map(esc).join(", ")} · ${s.status}</span></div>`).join("") || '<p class="muted">아직 없습니다.</p>'}`;
+  document.getElementById("create").onclick = async () => {
+    try {
+      const { session } = await api("/api/sessions", { method: "POST", body: JSON.stringify({ title: title.value, participants: [p1.value, p2.value, p3.value] }) });
+      go({ s: session.id });
+    } catch (e) { msg.textContent = e.message; }
+  };
+}
+
+async function sessionPage(id, me) {
+  const s = await api(`/api/sessions/${id}`);
+  const { notice } = await api("/api/notice");
+  if (!me) {
+    $app.innerHTML = `<h2>${esc(s.title)}</h2><div class="card notice">${esc(notice)}</div>
+      <p>나는 누구인가요? (각자 자기 링크로 들어옵니다)</p>
+      ${s.participants.map(p => `<p><a href="?s=${id}&me=${encodeURIComponent(p)}">${esc(p)}</a></p>`).join("")}
+      <p><a href="/">← 처음으로</a></p>`;
+    return;
+  }
+  const reflected = s.reflected.includes(me);
+  let html = `<h2>${esc(s.title)} · ${esc(me)}</h2><div class="card notice">${esc(notice)}</div>`;
+
+  if (s.status === "created" && !s.speakers) {
+    html += `<h2>1. 모임 녹음</h2>
+      <div class="card">
+        <button id="rec">● 녹음 시작</button> <span id="recState" class="muted"></span><br>
+        <span class="muted">또는 녹음 파일 올리기:</span> <input type="file" id="file" accept="audio/*">
+        <button id="up">올리기</button>
+      </div>
+      <details class="card" open><summary>전사본 텍스트로 넣기 ("이름: 내용" 한 줄에 하나)</summary>
+        <input type="file" id="txFile" accept=".txt,text/plain"> <span class="muted">.txt 파일을 고르면 아래 칸에 채워집니다</span>
+        <textarea id="tx" placeholder="${esc(s.participants[0])}: 요즘 어떻게 지냈어?"></textarea>
+        <button id="txBtn">전사본으로 분석</button>
+      </details>
+      <button id="noRec">녹음 없이 진행 (본인 평가만)</button>`;
+  }
+  if (s.speakers) {
+    html += `<h2>2. 누가 누구인지 연결</h2><div class="card">` +
+      Object.entries(s.speakers).map(([label, lines]) => `<p><b>화자 ${esc(label)}</b>: <span class="muted">${lines.map(esc).join(" / ")}</span><br>
+        <select data-label="${esc(label)}"><option value="">선택</option>${s.participants.map(p => `<option>${esc(p)}</option>`).join("")}</select></p>`).join("") +
+      `<button id="map">연결하고 분석</button></div>`;
+  }
+  if (s.analysisError) {
+    html += `<div class="card"><span class="err">AI 해석에 실패했습니다: ${esc(s.analysisError)}</span><br>
+      <span class="muted">숫자 지표는 먼저 볼 수 있습니다.</span> ${s.hasTranscript ? '<button id="retry">다시 분석</button>' : ""}</div>`;
+  }
+  if (!reflected) {
+    html += `<h2>3. 나의 회고</h2><div class="card">
+      이번 세션 만족도 <select id="rating">${[5,4,3,2,1].map(n => `<option>${n}</option>`).join("")}</select><br>
+      <textarea id="refl" placeholder="이번 대화에서 기억에 남는 것, 아쉬운 것"></textarea>
+      <button id="reflBtn">회고 저장</button>
+      <p class="muted">회고를 저장한 뒤에 결과를 볼 수 있습니다.</p></div>`;
+  } else {
+    html += `<h2>결과</h2><div id="result"></div>`;
+  }
+  html += `<p class="err" id="msg"></p><p><a href="?s=${id}">← 다른 사람으로</a> · <a href="/">처음으로</a></p>`;
+  $app.innerHTML = html;
+  const msg = document.getElementById("msg");
+  const run = fn => async () => { msg.textContent = "처리 중…"; try { await fn(); location.reload(); } catch (e) { msg.textContent = e.message; } };
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = run(fn); };
+
+  on("up", () => { const fd = new FormData(); fd.append("audio", file.files[0]); return api(`/api/sessions/${id}/audio`, { method: "POST", body: fd }); });
+  on("txBtn", () => api(`/api/sessions/${id}/transcript`, { method: "POST", body: JSON.stringify({ text: tx.value }) }));
+  on("noRec", () => api(`/api/sessions/${id}/no-recording`, { method: "POST" }));
+  on("retry", () => api(`/api/sessions/${id}/retry`, { method: "POST" }));
+  on("reflBtn", () => api(`/api/sessions/${id}/reflections`, { method: "POST", body: JSON.stringify({ me, rating: rating.value, text: refl.value }) }));
+  on("map", () => {
+    const map = {}; document.querySelectorAll("select[data-label]").forEach(el => { if (el.value) map[el.dataset.label] = el.value; });
+    return api(`/api/sessions/${id}/speakers`, { method: "POST", body: JSON.stringify({ map }) });
+  });
+
+  const txFile = document.getElementById("txFile");
+  if (txFile) txFile.onchange = async () => { if (txFile.files[0]) tx.value = await txFile.files[0].text(); };
+
+  const recBtn = document.getElementById("rec");
+  if (recBtn) {
+    let rec, chunks = [];
+    recBtn.onclick = async () => {
+      if (rec && rec.state === "recording") { rec.stop(); return; }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      rec = new MediaRecorder(stream); chunks = [];
+      rec.ondataavailable = e => chunks.push(e.data);
+      rec.onstop = run(() => { stream.getTracks().forEach(t => t.stop()); const fd = new FormData(); fd.append("audio", new Blob(chunks, { type: rec.mimeType }), "meeting.webm"); return api(`/api/sessions/${id}/audio`, { method: "POST", body: fd }); });
+      rec.start(); recBtn.textContent = "■ 녹음 끝내기"; recState.textContent = "녹음 중… (대화에 집중하세요)";
+    };
+  }
+  if (reflected) showResult(id, me);
+}
+
+async function showResult(id, me) {
+  const el = document.getElementById("result");
+  try {
+    const r = await api(`/api/sessions/${id}/result?me=${encodeURIComponent(me)}`);
+    let h = `<div class="card"><b>세션 만족도</b> 평균 ${r.satisfaction.average} / 5 (${r.satisfaction.count}명 응답)</div>`;
+    if (r.mode === "self") {
+      h += `<div class="card"><b>녹음 없이 진행한 세션입니다.</b> 세 사람의 회고로 돌아봅니다.
+        ${r.reflections.map(x => `<p><b>${esc(x.who)}</b>: ${esc(x.text) || '<span class="muted">(빈 회고)</span>'}</p>`).join("")}</div>`;
+    } else {
+      h += `<div class="card"><b>대화 균형</b> ${r.balance} / 100 <span class="muted">(${esc(r.basis)} 기준, 세 사람이 고르게 말할수록 높음)</span>`;
+      if (r.session) h += `<p>${esc(r.session)}</p>`;
+      if (r.engine) h += `<p class="muted">${{ rules: "AI 없이 규칙으로 만든 결과입니다.", ollama: "로컬 AI(Ollama)로 만든 결과입니다.", claude: "Claude로 만든 결과입니다." }[r.engine] || ""}</p>`;
+      if (r.pending) h += `<p class="muted">${esc(r.pending)}</p>`;
+      h += `</div>`;
+      if (r.nextTopics) h += `<div class="card"><b>다음 모임에서 이야기해 볼 주제</b><ul>${r.nextTopics.map(t => `<li>${esc(t)}</li>`).join("")}</ul>
+        <b>다음 모임 전까지 해 볼 것</b><ul>${r.todo.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>`;
+      h += `<div class="card private"><b>나만 보는 결과</b> <span class="muted">(다른 사람에게는 보이지 않습니다)</span><br>
+        내 발화 비중 ${r.me.share}% · 발화 ${r.me.turns}회 · 질문 ${r.me.questions}회 (그중 이어서 한 질문 ${r.me.followUps}회)
+        ${r.me.role ? `<p><b>역할</b>: ${esc(r.me.role)}</p><p>${esc(r.me.engagement)}</p>` : ""}</div>`;
+    }
+    h += `<div class="card"><b>나의 회고</b> (${r.myReflection.rating}/5) ${esc(r.myReflection.text)}</div>`;
+    el.innerHTML = h;
+  } catch (e) { el.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+
+const id = q.get("s");
+(id ? sessionPage(id, q.get("me")) : home()).catch(e => { $app.innerHTML = `<p class="err">${esc(e.message)}</p>`; });
+</script>
+</body>
+</html>
