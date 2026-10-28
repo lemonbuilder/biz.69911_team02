@@ -7,7 +7,7 @@ import multer from "multer";
 import * as store from "./lib/store.js";
 import { computeMetrics, parseTranscriptText } from "./lib/metrics.js";
 import { transcribe } from "./lib/clova.js";
-import { analyze } from "./lib/analyze.js";
+import { analyze, NO_ENGINE } from "./lib/analyze.js";
 
 export const NOTICE = "이 세션은 녹음됩니다. 모임이 끝나면 녹음을 전사해 대화를 분석하고, 결과를 드린 뒤 녹음과 전사본은 삭제합니다. 모임 중에는 AI가 개입하지 않습니다.";
 
@@ -22,7 +22,7 @@ const need = (req, res) => {
   return s;
 };
 
-// 전사본이 이름과 연결되면 지표를 계산하고 Claude로 분석한다.
+// 전사본이 이름과 연결되면 지표를 계산하고 LLM으로 분석한다.
 // 성공하면 전사본을 지운다. 실패하면 지표만 남기고 재시도를 위해 전사본을 보관한다.
 async function runAnalysis(s) {
   s.metrics = computeMetrics(s.segments, s.participants);
@@ -134,16 +134,17 @@ export function resultFor(s, me) {
     ...base,
     mode: s.analysis ? "full" : "metricsOnly",
     balance: s.metrics.balance, basis: s.metrics.basis,
-    me: { share: mine.share, turns: mine.turns, questions: mine.questions, followUps: mine.followUps },
+    me: { share: mine.share, turns: mine.turns, avgLen: mine.avgLen, longestRun: mine.longestRun, questions: mine.questions, followUps: mine.followUps },
   };
   if (s.analysis) {
     out.session = s.analysis.session;
     out.nextTopics = s.analysis.nextTopics;
     out.todo = s.analysis.todo;
+    out.highlights = s.analysis.highlights || [];
     out.engine = s.analysis.engine;
     out.me = { ...out.me, ...s.analysis.individual[me] };
   } else {
-    out.pending = "해석은 준비 중입니다.";
+    out.pending = s.analysisError === NO_ENGINE ? "주제·해 볼 것·역할 해석은 AI 분석이 필요합니다." : "해석은 준비 중입니다.";
   }
   return out;
 }
