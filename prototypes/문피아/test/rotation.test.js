@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 await import("../public/rotation.js");
-const { ROLES, SEATS, TOPICS, createRotation, roleIndex, assignments, nextTurn, toggleRest } = globalThis.RoleRotation;
+const { ROLES, SEATS, TOPICS, questionFor, createRotation, roleIndex, assignments, nextTurn, toggleRest } = globalThis.RoleRotation;
 
 // 정해진 값을 차례로 돌려주는 가짜 난수
 const seq = (...xs) => { let i = 0; return () => xs[i++ % xs.length]; };
@@ -81,12 +81,28 @@ test("화두: 기본은 실패, 화두 없이 선택 가능, 고백을 요구하
   assert.equal(TOPICS[0].id, "failure");
   assert.equal(TOPICS.filter(t => t.text === null).length, 1);
   for (const t of TOPICS.filter(t => t.text)) {
-    assert.match(t.text, /\?/, `질문 형태: ${t.label}`);
-    for (const banned of ["당신의 실패", "털어놓", "고백", "직업", "회사", "나이", "사는 곳"]) {
-      assert.ok(!t.text.includes(banned), `${t.label}에 "${banned}"`);
+    assert.ok(t.questions.length >= 2 && t.questions.length <= 3, `${t.label}: 질문 2~3개`);
+    for (const line of [t.text, ...t.questions]) {
+      assert.match(line, /\?/, `질문 형태: ${line}`);
+      for (const banned of ["당신의 실패", "털어놓", "고백", "직업", "회사", "나이", "사는 곳"]) {
+        assert.ok(!line.includes(banned), `${t.label}에 "${banned}"`);
+      }
     }
   }
   assert.match(TOPICS[0].text, /들은 이야기/);
+});
+
+test("화두 질문은 차례마다 하나씩 넘어가고, 다 쓰면 화두만 남는다", () => {
+  const failure = TOPICS[0];
+  let s = createRotation();
+  for (const q of failure.questions) {
+    assert.equal(questionFor(failure, s), q);
+    s = nextTurn(s);
+  }
+  assert.equal(questionFor(failure, s), null);
+  assert.equal(questionFor(TOPICS.find(t => t.id === "none"), createRotation()), null);
+  // 쉬기는 질문을 넘기지 않는다
+  assert.equal(questionFor(failure, toggleRest(createRotation(), 0)), failure.questions[0]);
 });
 
 test("역할 이름은 Recap의 관찰 라벨과 겹치지 않는다", () => {

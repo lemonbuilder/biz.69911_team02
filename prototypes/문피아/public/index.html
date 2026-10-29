@@ -40,11 +40,22 @@
   .topic-list label:has(input:checked) { border-color: var(--green); color: var(--green); font-weight: 600; }
   .topic-list label:has(input:focus-visible) { outline: 3px solid var(--seed); outline-offset: 2px; }
   #topicPreview { margin: 0; min-height: 1.5em; font-size: 16px; color: var(--muted); text-align: center; max-width: 720px; }
-  .names { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
-  .names label { display: flex; flex-direction: column; gap: 6px; font-size: 15px; color: var(--muted); }
-  .names input { font: inherit; font-size: 20px; color: var(--ink); width: 200px; padding: 12px 14px;
-    border: 2px solid var(--line); border-radius: 12px; background: var(--card); }
-  .names-note { margin: -16px 0 0; font-size: 15px; color: var(--muted); }
+  /* 위에서 내려다본 테이블. 그림의 왼쪽 = 화면을 바라볼 때 왼쪽 */
+  .seatmap { display: grid; width: min(620px, 100%); gap: 10px 12px; align-items: center;
+    grid-template-columns: 1fr 1.25fr 1fr;
+    grid-template-areas: ". laptop ." "s0 table s2" ". s1 ."; }
+  .seatmap .laptop { grid-area: laptop; justify-self: center; display: flex; flex-direction: column;
+    align-items: center; gap: 2px; font-size: 13px; color: var(--muted); margin-bottom: -22px; z-index: 1; }
+  .seatmap .laptop svg { display: block; }
+  .seatmap .tbl { grid-area: table; height: 150px; border-radius: 48% / 40%; background: #E6DCC8;
+    border: 2px solid #CDBFA3; }
+  .seat-in { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }
+  .seat-in.s0 { grid-area: s0; } .seat-in.s1 { grid-area: s1; } .seat-in.s2 { grid-area: s2; }
+  .seat-in .chair { width: 34px; height: 34px; border-radius: 50%; background: var(--card);
+    border: 2px solid var(--green); display: grid; place-items: center; font-size: 15px; color: var(--green); font-weight: 700; }
+  .seat-in input { font: inherit; font-size: 18px; color: var(--ink); width: 100%; max-width: 170px; padding: 10px 12px;
+    border: 2px solid var(--line); border-radius: 12px; background: var(--card); text-align: center; }
+  .names-note { margin: -12px 0 0; font-size: 15px; color: var(--muted); text-align: center; }
   .start { display: flex; flex-direction: column; align-items: center; gap: 10px; }
   .start p { margin: 0; font-size: 16px; color: var(--muted); }
 
@@ -53,7 +64,10 @@
   .top { display: flex; justify-content: flex-end; font-size: 15px; color: #A7A39A; min-height: 1.4em; }
   .topic-bar { text-align: center; margin: 4px auto 0; max-width: 1000px; }
   .topic-bar .k { display: block; font-size: 15px; color: var(--muted); margin-bottom: 4px; }
-  .topic-bar .t { margin: 0; font-size: 28px; font-weight: 600; line-height: 1.4; word-break: keep-all; }
+  .topic-bar .t { margin: 0; font-size: 22px; color: var(--muted); line-height: 1.4; word-break: keep-all; }
+  .topic-bar .q { margin: 10px 0 0; font-size: 28px; font-weight: 600; line-height: 1.4; word-break: keep-all; }
+  .topic-bar .q .n { display: inline-block; font-size: 15px; font-weight: 400; color: var(--seed);
+    border: 1px solid var(--seed); border-radius: 999px; padding: 1px 10px; margin-right: 10px; vertical-align: middle; }
   .middle { flex: 1; display: flex; align-items: center; justify-content: center; padding-top: 16px; }
   .seats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; width: 100%; max-width: 1200px; }
   .seat { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 24px 24px 16px;
@@ -105,12 +119,21 @@
     <div id="topicList" class="topic-list"></div>
     <p id="topicPreview"></p>
   </fieldset>
-  <div class="names">
-    <label>화면을 바라볼 때 왼쪽<input id="name0" maxlength="10" placeholder="왼쪽 자리" autocomplete="off"></label>
-    <label>가운데<input id="name1" maxlength="10" placeholder="가운데 자리" autocomplete="off"></label>
-    <label>오른쪽<input id="name2" maxlength="10" placeholder="오른쪽 자리" autocomplete="off"></label>
+  <div class="seatmap" role="group" aria-label="테이블 자리마다 부를 이름">
+    <div class="laptop" aria-hidden="true">
+      <svg width="72" height="40" viewBox="0 0 72 40"><rect x="10" y="2" width="52" height="30" rx="3" fill="#1F2A2E"/>
+        <rect x="14" y="6" width="44" height="22" rx="1" fill="#2F6B4F"/><rect x="2" y="32" width="68" height="6" rx="3" fill="#6A7179"/></svg>
+      노트북 화면
+    </div>
+    <div class="tbl" aria-hidden="true"></div>
+    <label class="seat-in s0"><span class="chair" aria-hidden="true">왼</span>왼쪽 자리
+      <input id="name0" maxlength="10" placeholder="이름" autocomplete="off"></label>
+    <label class="seat-in s1"><span class="chair" aria-hidden="true">가</span>가운데 자리
+      <input id="name1" maxlength="10" placeholder="이름" autocomplete="off"></label>
+    <label class="seat-in s2"><span class="chair" aria-hidden="true">오</span>오른쪽 자리
+      <input id="name2" maxlength="10" placeholder="이름" autocomplete="off"></label>
   </div>
-  <p class="names-note">부를 이름은 적지 않아도 됩니다. 끝내면 지웁니다.</p>
+  <p class="names-note">위에서 내려다본 테이블이에요. 노트북 화면을 바라보고 앉은 자리에 부를 이름을 적어 주세요.<br>적지 않아도 됩니다. 끝내면 지웁니다.</p>
   <div class="start">
     <button id="startBtn" class="primary">역할 시작</button>
     <p>첫 인사가 끝나면 눌러 주세요.</p>
@@ -122,6 +145,7 @@
   <div id="topicBar" class="topic-bar" hidden>
     <span class="k">오늘의 화두</span>
     <p id="topicText" class="t"></p>
+    <p id="topicQ" class="q" hidden><span id="topicQn" class="n"></span><span id="topicQt"></span></p>
   </div>
   <div class="middle">
     <div id="seats" class="seats" aria-live="polite"></div>
