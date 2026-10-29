@@ -86,6 +86,12 @@ function renderSeats() {
     card.querySelector(".role").textContent = role.name;
     card.querySelector(".desc").textContent = role.desc;
     card.querySelector(".rest-note").textContent = resting ? "이번엔 쉬어요" : "";
+    if (role.id === "open") {
+      const first = document.createElement("span");
+      first.className = "first";
+      first.textContent = "먼저 시작해요";
+      card.querySelector(".who").after(first);
+    }
     const btn = card.querySelector("button");
     btn.textContent = resting ? "다시 할게요" : "이번엔 쉬어요";
     btn.addEventListener("click", () => {
