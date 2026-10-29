@@ -41,6 +41,7 @@ function start() {
     names: [0, 1, 2].map(i => $(`name${i}`).value.trim()),
     topic: selectedTopic(),
     on: true,
+    startedAt: Date.now(),
     turnStartedAt: Date.now(),
   };
   $("topicText").textContent = state.topic.text || "";
@@ -103,10 +104,12 @@ function renderSeats() {
 }
 
 // 지난 시간은 작게 보여 주기만 한다. 소리·깜빡임으로 재촉하지 않는다
+// "모임 N분"은 역할을 꺼도 계속 센다. 시간 실험에서 종이에 옮겨 적는 데 쓴다
 function renderElapsed() {
   if (!state) return;
-  const min = Math.floor((Date.now() - state.turnStartedAt) / 60_000) + 1;
-  $("elapsed").textContent = state.on ? `이번 차례 ${min}분째` : "";
+  const minutes = since => Math.floor((Date.now() - since) / 60_000);
+  const total = `모임 ${minutes(state.startedAt)}분`;
+  $("elapsed").textContent = state.on ? `${total} · 이번 차례 ${minutes(state.turnStartedAt) + 1}분째` : total;
 }
 
 function next() {
