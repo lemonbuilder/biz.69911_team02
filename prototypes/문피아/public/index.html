@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>진짜대화 · 역할 돌리기</title>
+<style>
+  /* 팀원 Facilitator와 같은 색을 써서, 같은 서비스의 화면으로 보이게 한다 */
+  :root {
+    --bg: #FAF8F3; --ink: #1F2A2E; --muted: #6A7179; --green: #2F6B4F;
+    --seed: #C8792B; --line: #D9D4C7; --card: #FFFFFF;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+  button { font: inherit; cursor: pointer; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--card); color: var(--ink); padding: 12px 20px; }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--seed); outline-offset: 2px; }
+  .primary { background: var(--green); color: #fff; border-color: var(--green); font-size: 24px; padding: 18px 48px; }
+  .quiet { border: none; background: none; color: var(--muted); font-size: 16px; padding: 8px 12px; }
+  .screen { display: none; min-height: 100vh; }
+  .screen.on { display: flex; }
+
+  /* 시작 */
+  #intro { flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px; gap: 28px; }
+  #intro h1 { margin: 0; font-size: 32px; }
+  .about { max-width: 720px; font-size: 18px; line-height: 1.7; }
+  .about .lead { margin: 0 0 10px; font-size: 20px; font-weight: 600; }
+  .about ul { margin: 0; padding-left: 20px; color: var(--muted); }
+  .names { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+  .names label { display: flex; flex-direction: column; gap: 6px; font-size: 15px; color: var(--muted); }
+  .names input { font: inherit; font-size: 20px; color: var(--ink); width: 200px; padding: 12px 14px;
+    border: 2px solid var(--line); border-radius: 12px; background: var(--card); }
+  .names-note { margin: -16px 0 0; font-size: 15px; color: var(--muted); }
+  .start { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .start p { margin: 0; font-size: 16px; color: var(--muted); }
+
+  /* 모임 */
+  #session { flex-direction: column; padding: 20px 32px 24px; }
+  .top { display: flex; justify-content: flex-end; font-size: 15px; color: #A7A39A; min-height: 1.4em; }
+  .middle { flex: 1; display: flex; align-items: center; justify-content: center; }
+  .seats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; width: 100%; max-width: 1200px; }
+  .seat { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 24px 24px 16px;
+    display: flex; flex-direction: column; gap: 14px; text-align: center; transition: opacity .3s; }
+  .seat .who { font-size: 18px; color: var(--muted); }
+  .seat .role { font-size: 44px; font-weight: 700; line-height: 1.2; margin: 0; word-break: keep-all; }
+  .seat .desc { font-size: 20px; line-height: 1.55; margin: 0; flex: 1; word-break: keep-all; }
+  .seat[data-role="differ"] { border-color: var(--seed); }
+  .seat.resting .role, .seat.resting .desc { opacity: .3; }
+  .seat .rest-note { font-size: 18px; color: var(--muted); min-height: 1.4em; margin: 0; }
+  .paused-note { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+  .paused-note p { margin: 0; font-size: 28px; color: var(--muted); }
+  .bottom { display: flex; justify-content: center; margin-top: 20px; }
+  .footer { display: flex; justify-content: space-between; align-items: end; margin-top: 12px; }
+  #endBtn { margin-left: auto; }   /* "역할 없이 계속"이 숨어도 오른쪽 구석에 남게 */
+
+  /* 끝 */
+  #ended { flex-direction: column; align-items: center; justify-content: center; gap: 20px; font-size: 22px;
+    text-align: center; padding: 24px; }
+  #ended p { margin: 0; }
+
+  @media (max-width: 760px) {
+    #session { padding: 16px; }
+    .seats { grid-template-columns: 1fr; }
+    .seat .role { font-size: 36px; }
+  }
+</style>
+</head>
+<body>
+
+<section id="intro" class="screen on">
+  <h1>역할 돌리기</h1>
+  <div class="about">
+    <p class="lead">서로 다른 생각이 오가도록, 세 사람이 대화 속 역할을 돌아가며 맡습니다.</p>
+    <ul>
+      <li>말 꺼내기 · 되짚기 · 다르게 보기, 세 역할이 한 차례마다 한 칸씩 돕니다.</li>
+      <li>이야기 하나가 일단락되면 "다음 차례"를 눌러 주세요.</li>
+      <li>역할이 버거우면 "이번엔 쉬어요"를, 역할 없이 이야기하고 싶으면 "역할 없이 계속"을 누르면 됩니다.</li>
+      <li>이 화면은 대화를 듣지도, 기록하지도 않습니다.</li>
+    </ul>
+  </div>
+  <div class="names">
+    <label>화면을 바라볼 때 왼쪽<input id="name0" maxlength="10" placeholder="왼쪽 자리" autocomplete="off"></label>
+    <label>가운데<input id="name1" maxlength="10" placeholder="가운데 자리" autocomplete="off"></label>
+    <label>오른쪽<input id="name2" maxlength="10" placeholder="오른쪽 자리" autocomplete="off"></label>
+  </div>
+  <p class="names-note">부를 이름은 적지 않아도 됩니다. 끝내면 지웁니다.</p>
+  <div class="start">
+    <button id="startBtn" class="primary">역할 시작</button>
+    <p>첫 인사가 끝나면 눌러 주세요.</p>
+  </div>
+</section>
+
+<section id="session" class="screen">
+  <div class="top"><span id="elapsed"></span></div>
+  <div class="middle">
+    <div id="seats" class="seats" aria-live="polite"></div>
+    <div id="pausedNote" class="paused-note" hidden>
+      <p>지금은 역할 없이 이야기하는 중이에요.</p>
+      <button id="resumeBtn" class="primary">역할 다시 켜기</button>
+    </div>
+  </div>
+  <div class="bottom"><button id="nextBtn" class="primary">다음 차례</button></div>
+  <div class="footer">
+    <button id="pauseBtn" class="quiet">역할 없이 계속</button>
+    <button id="endBtn" class="quiet">끝내기</button>
+  </div>
+</section>
+
+<section id="ended" class="screen">
+  <p>끝났습니다. 입력한 이름을 지웠습니다.</p>
+  <button id="againBtn">처음으로</button>
+</section>
+
+<script src="rotation.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
