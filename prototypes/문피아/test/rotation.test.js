@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 await import("../public/rotation.js");
-const { ROLES, SEATS, createRotation, roleIndex, assignments, nextTurn, toggleRest } = globalThis.RoleRotation;
+const { ROLES, SEATS, TOPICS, createRotation, roleIndex, assignments, nextTurn, toggleRest } = globalThis.RoleRotation;
 
 // 정해진 값을 차례로 돌려주는 가짜 난수
 const seq = (...xs) => { let i = 0; return () => xs[i++ % xs.length]; };
@@ -70,6 +70,23 @@ test("역할 문구: 다르게 보기는 반대 연기가 아니고 빠져나갈
   const differ = ROLES.find(r => r.id === "differ");
   assert.match(differ.desc, /반대하라는 뜻은 아니에요/);
   assert.match(differ.desc, /저도 비슷해요/);
+});
+
+test("역할 문구: 되짚기에 후속 질문, 말 꺼내기에 들은 이야기", () => {
+  assert.match(ROLES.find(r => r.id === "reflect").desc, /하나 더 물어봐/);
+  assert.match(ROLES.find(r => r.id === "open").desc, /들은 이야기/);
+});
+
+test("화두: 기본은 실패, 화두 없이 선택 가능, 고백을 요구하지 않는 질문", () => {
+  assert.equal(TOPICS[0].id, "failure");
+  assert.equal(TOPICS.filter(t => t.text === null).length, 1);
+  for (const t of TOPICS.filter(t => t.text)) {
+    assert.match(t.text, /\?/, `질문 형태: ${t.label}`);
+    for (const banned of ["당신의 실패", "털어놓", "고백", "직업", "회사", "나이", "사는 곳"]) {
+      assert.ok(!t.text.includes(banned), `${t.label}에 "${banned}"`);
+    }
+  }
+  assert.match(TOPICS[0].text, /들은 이야기/);
 });
 
 test("역할 이름은 Recap의 관찰 라벨과 겹치지 않는다", () => {

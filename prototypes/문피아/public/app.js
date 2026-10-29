@@ -1,22 +1,50 @@
 // 역할 돌리기 화면. 규칙은 rotation.js에 있고, 여기서는 화면만 다룬다.
 // 모든 상태는 이 변수에만 있다. 새로고침하거나 끝내면 사라진다.
-const { SEATS, createRotation, assignments, nextTurn, toggleRest } = window.RoleRotation;
+const { SEATS, TOPICS, createRotation, assignments, nextTurn, toggleRest } = window.RoleRotation;
 const $ = id => document.getElementById(id);
 
-let state = null;   // { rotation, names: [3], on: bool, turnStartedAt }
+let state = null;   // { rotation, names: [3], topic, on: bool, turnStartedAt }
 let ticker = null;
 
 function show(screen) {
   for (const id of ["intro", "session", "ended"]) $(id).classList.toggle("on", id === screen);
 }
 
+// 화두 고르기. 첫 화두(실패)가 기본으로 골라져 있다
+function renderTopicChoices() {
+  $("topicList").replaceChildren(...TOPICS.map((t, i) => {
+    const label = document.createElement("label");
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = "topic";
+    input.value = t.id;
+    input.checked = i === 0;
+    input.addEventListener("change", renderTopicPreview);
+    label.append(input, t.label);
+    return label;
+  }));
+  renderTopicPreview();
+}
+
+function selectedTopic() {
+  const id = document.querySelector('input[name="topic"]:checked')?.value;
+  return TOPICS.find(t => t.id === id) || TOPICS[0];
+}
+
+function renderTopicPreview() {
+  $("topicPreview").textContent = selectedTopic().text || "화면에 화두를 띄우지 않아요.";
+}
+
 function start() {
   state = {
     rotation: createRotation(),
     names: [0, 1, 2].map(i => $(`name${i}`).value.trim()),
+    topic: selectedTopic(),
     on: true,
     turnStartedAt: Date.now(),
   };
+  $("topicText").textContent = state.topic.text || "";
+  $("topicBar").hidden = !state.topic.text;
   show("session");
   render();
   ticker = setInterval(renderElapsed, 15_000);
@@ -93,9 +121,13 @@ function end() {
   for (const i of [0, 1, 2]) $(`name${i}`).value = "";
   $("seats").replaceChildren();
   $("elapsed").textContent = "";
+  $("topicText").textContent = "";
+  $("topicBar").hidden = true;
+  renderTopicChoices();
   show("ended");
 }
 
+renderTopicChoices();
 $("startBtn").addEventListener("click", start);
 $("nextBtn").addEventListener("click", next);
 $("pauseBtn").addEventListener("click", pause);

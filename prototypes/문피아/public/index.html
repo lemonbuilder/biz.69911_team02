@@ -28,6 +28,18 @@
   .about { max-width: 720px; font-size: 18px; line-height: 1.7; }
   .about .lead { margin: 0 0 10px; font-size: 20px; font-weight: 600; }
   .about ul { margin: 0; padding-left: 20px; color: var(--muted); }
+  .pledge { max-width: 720px; margin: 0; padding: 14px 20px; border-left: 4px solid var(--seed);
+    background: var(--card); border-radius: 0 12px 12px 0; font-size: 17px; line-height: 1.7; }
+  .pledge p { margin: 0; }
+  .topics { border: none; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .topics legend { font-size: 15px; color: var(--muted); margin-bottom: 10px; text-align: center; padding: 0; }
+  .topic-list { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .topic-list label { font-size: 17px; background: var(--card); border: 2px solid var(--line); border-radius: 999px;
+    padding: 8px 16px; cursor: pointer; }
+  .topic-list input { position: absolute; opacity: 0; pointer-events: none; }
+  .topic-list label:has(input:checked) { border-color: var(--green); color: var(--green); font-weight: 600; }
+  .topic-list label:has(input:focus-visible) { outline: 3px solid var(--seed); outline-offset: 2px; }
+  #topicPreview { margin: 0; min-height: 1.5em; font-size: 16px; color: var(--muted); text-align: center; max-width: 720px; }
   .names { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
   .names label { display: flex; flex-direction: column; gap: 6px; font-size: 15px; color: var(--muted); }
   .names input { font: inherit; font-size: 20px; color: var(--ink); width: 200px; padding: 12px 14px;
@@ -39,7 +51,10 @@
   /* 모임 */
   #session { flex-direction: column; padding: 20px 32px 24px; }
   .top { display: flex; justify-content: flex-end; font-size: 15px; color: #A7A39A; min-height: 1.4em; }
-  .middle { flex: 1; display: flex; align-items: center; justify-content: center; }
+  .topic-bar { text-align: center; margin: 4px auto 0; max-width: 1000px; }
+  .topic-bar .k { display: block; font-size: 15px; color: var(--muted); margin-bottom: 4px; }
+  .topic-bar .t { margin: 0; font-size: 28px; font-weight: 600; line-height: 1.4; word-break: keep-all; }
+  .middle { flex: 1; display: flex; align-items: center; justify-content: center; padding-top: 16px; }
   .seats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; width: 100%; max-width: 1200px; }
   .seat { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 24px 24px 16px;
     display: flex; flex-direction: column; gap: 14px; text-align: center; transition: opacity .3s; }
@@ -80,6 +95,16 @@
       <li>이 화면은 대화를 듣지도, 기록하지도 않습니다.</li>
     </ul>
   </div>
+  <div class="pledge">
+    <p>이기거나 설득하려는 자리가 아니에요. 서로 다른 생각을 발견하려는 자리예요.</p>
+    <p>처음 만난 사람과의 깊은 대화는 생각보다 덜 어색하고, 상대는 생각보다 내 이야기에 관심이 있다고 해요.</p>
+    <p>조언은 부탁받았을 때만 해 주세요.</p>
+  </div>
+  <fieldset class="topics">
+    <legend>오늘의 화두</legend>
+    <div id="topicList" class="topic-list"></div>
+    <p id="topicPreview"></p>
+  </fieldset>
   <div class="names">
     <label>화면을 바라볼 때 왼쪽<input id="name0" maxlength="10" placeholder="왼쪽 자리" autocomplete="off"></label>
     <label>가운데<input id="name1" maxlength="10" placeholder="가운데 자리" autocomplete="off"></label>
@@ -94,6 +119,10 @@
 
 <section id="session" class="screen">
   <div class="top"><span id="elapsed"></span></div>
+  <div id="topicBar" class="topic-bar" hidden>
+    <span class="k">오늘의 화두</span>
+    <p id="topicText" class="t"></p>
+  </div>
   <div class="middle">
     <div id="seats" class="seats" aria-live="polite"></div>
     <div id="pausedNote" class="paused-note" hidden>
